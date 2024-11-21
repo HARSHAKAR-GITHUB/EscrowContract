@@ -18,7 +18,6 @@ contract SimpleEscrow is Pausable, Ownable {
     uint256 public escrowCount;
 
     event EscrowCreated(uint256 indexed escrowId, address indexed buyer, address indexed seller, uint256 amount);
-    event EscrowFunded(uint256 indexed escrowId);
     event EscrowCompleted(uint256 indexed escrowId);
     event EscrowRefunded(uint256 indexed escrowId);
 
@@ -37,26 +36,21 @@ contract SimpleEscrow is Pausable, Ownable {
         _;
     }
 
+    // Constructor modified to pass msg.sender as the owner
+    constructor() Ownable(msg.sender) {}
+
     function createEscrow(address payable seller) external payable whenNotPaused {
         require(msg.value > 0, "Amount must be greater than zero");
-        
+
         escrowCount++;
         escrows[escrowCount] = Escrow({
             buyer: payable(msg.sender),
             seller: seller,
             amount: msg.value,
-            state: EscrowState.Created
+            state: EscrowState.Funded
         });
 
         emit EscrowCreated(escrowCount, msg.sender, seller, msg.value);
-    }
-
-    function fundEscrow(uint256 escrowId) external inState(escrowId, EscrowState.Created) whenNotPaused {
-        Escrow storage escrow = escrows[escrowId];
-        require(msg.sender == escrow.buyer, "Only buyer can fund the escrow");
-        
-        escrow.state = EscrowState.Funded;
-        emit EscrowFunded(escrowId);
     }
 
     function completeEscrow(uint256 escrowId) external onlySeller(escrowId) inState(escrowId, EscrowState.Funded) whenNotPaused {
@@ -67,7 +61,7 @@ contract SimpleEscrow is Pausable, Ownable {
         emit EscrowCompleted(escrowId);
     }
 
-    function refundEscrow(uint256 escrowId) external inState(escrowId, EscrowState.Funded) whenPaused {
+    function refundEscrow(uint256 escrowId) external onlyBuyer(escrowId) inState(escrowId, EscrowState.Funded) whenNotPaused {
         Escrow storage escrow = escrows[escrowId];
         escrow.state = EscrowState.Refunded;
 
